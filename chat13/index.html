@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ChatGPT-Style Forms & Sheets</title>
+  <!-- Bootstrap CSS for basic layout and buttons -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- Firebase App and Auth SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <style>
+    body {
+      background-color: #f7f7f8;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding-bottom: 60px;
+    }
+    /* Header styling similar to ChatGPT */
+    .header {
+      background: #343541;
+      color: #ffffff;
+      padding: 15px 20px;
+      text-align: center;
+      font-size: 1.25rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      position: fixed;
+      width: 100%;
+      top: 0;
+      left: 0;
+      z-index: 100;
+    }
+    /* Main container styling */
+    .container-main {
+      max-width: 800px;
+      margin: 100px auto 20px;
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    /* Chat area styling */
+    .chat-area {
+      height: 500px;
+      overflow-y: auto;
+      padding: 20px;
+      background: #fafafa;
+      border-bottom: 1px solid #eaeaea;
+    }
+    .chat-message {
+      margin-bottom: 15px;
+      line-height: 1.5;
+    }
+    .chat-message.user {
+      text-align: right;
+    }
+    .chat-message.ai {
+      text-align: left;
+    }
+    .chat-message span {
+      display: inline-block;
+      padding: 10px 15px;
+      border-radius: 18px;
+      max-width: 70%;
+    }
+    .chat-message.user span {
+      background: #007ace;
+      color: #ffffff;
+    }
+    .chat-message.ai span {
+      background: #e5e5ea;
+      color: #000000;
+    }
+    /* Input area styling */
+    .input-area {
+      padding: 15px;
+      background: #ffffff;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+    }
+    .input-area .form-control {
+      border-radius: 20px;
+      padding: 10px 15px;
+      border: 1px solid #ccc;
+    }
+    /* Quick Action Buttons */
+    .action-buttons {
+      margin: 10px 0;
+      text-align: center;
+    }
+    .action-buttons button {
+      margin: 0 5px;
+    }
+    /* Authentication / status styling */
+    .auth-status {
+      margin-top: 70px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    .auth-status span {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <!-- Fixed Header -->
+  <div class="header">
+    ChatGPT-Style Forms & Sheets
+  </div>
+  
+  <!-- Main Container -->
+  <div class="container container-main">
+    <!-- Authentication / Status Section -->
+    <div class="auth-status" id="auth-status">
+      <button id="login-button" class="btn btn-primary">Login with Google</button>
+      <button id="logout-button" class="btn btn-secondary" style="display:none;">Logout</button>
+      <div id="user-info" style="margin-top: 10px; display:none;">
+        Logged in as: <span id="user-email"></span>
+      </div>
+    </div>
+    
+    <!-- Quick Action Buttons -->
+    <div class="action-buttons" id="quick-actions" style="display:none;">
+      <button id="quick-generate-form" class="btn btn-outline-success btn-sm">Generate Form</button>
+      <button id="quick-generate-form-sheet" class="btn btn-outline-info btn-sm">Generate Form & Sheet</button>
+      <button id="quick-generate-sheet" class="btn btn-outline-dark btn-sm">Generate Sheet</button>
+      <button id="quick-list-forms" class="btn btn-outline-warning btn-sm">List My Forms</button>
+      <button id="quick-edit-sheet" class="btn btn-outline-primary btn-sm">Edit Sheet</button>
+    </div>
+    
+    <!-- Chat Conversation Area -->
+    <div class="chat-area" id="chat-area">
+      <!-- Chat messages will appear here -->
+    </div>
+  </div>
+  
+  <!-- Input Area for Commands -->
+  <div class="input-area">
+    <div class="container">
+      <form id="chat-form">
+        <div class="input-group">
+          <input type="text" id="chat-input" class="form-control" placeholder="Enter your command or message...">
+          <div class="input-group-append">
+            <button class="btn btn-primary" type="submit">Send</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <script>
+    // Firebase configuration – replace with your actual config values
+    const firebaseConfig = {
+      apiKey: "AIzaSyCadZIoYzIc_QhEkGjv86G4rjFwMASd5ig",
+      authDomain: "nothing-d3af4.firebaseapp.com",
+      databaseURL: "https://nothing-d3af4-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "nothing-d3af4",
+      storageBucket: "nothing-d3af4.firebasestorage.app",
+      messagingSenderId: "7155955115",
+      appId: "1:7155955115:web:3bd80618f9aff1a4dc8eee",
+      measurementId: "G-XSVGL2M8LL"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    // UI Elements
+    const loginButton = document.getElementById('login-button');
+    const logoutButton = document.getElementById('logout-button');
+    const userInfoDiv = document.getElementById('user-info');
+    const userEmailSpan = document.getElementById('user-email');
+    const authStatusDiv = document.getElementById('auth-status');
+    const quickActionsDiv = document.getElementById('quick-actions');
+    const chatArea = document.getElementById('chat-area');
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+
+    // Quick Action Buttons
+    const quickGenerateFormBtn = document.getElementById('quick-generate-form');
+    const quickGenerateFormSheetBtn = document.getElementById('quick-generate-form-sheet');
+    const quickGenerateSheetBtn = document.getElementById('quick-generate-sheet');
+    const quickListFormsBtn = document.getElementById('quick-list-forms');
+    const quickEditSheetBtn = document.getElementById('quick-edit-sheet');
+
+    // Append a message to the chat area
+    function appendMessage(sender, text) {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'chat-message ' + sender;
+      const span = document.createElement('span');
+      span.innerHTML = text;
+      msgDiv.appendChild(span);
+      chatArea.appendChild(msgDiv);
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    // Call API endpoints with Firebase token authentication
+    function callApi(endpoint, payload, method = 'POST') {
+      return auth.currentUser.getIdToken().then(token => {
+        return fetch(endpoint, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(payload)
+        }).then(response => response.json());
+      });
+    }
+
+    // Process a natural language command via the /api/chat endpoint
+    function processCommand(commandText) {
+      appendMessage('user', commandText);
+      callApi('/api/chat', {
+        message: commandText,
+        userEmail: auth.currentUser.email
+      })
+      .then(data => {
+        if (data.success) {
+          let reply = '';
+          if (data.type === "form") {
+            reply = `Form created: <a href="${data.url}" target="_blank">${data.title}</a>`;
+          } else if (data.type === "formSheet") {
+            reply = `Form created: <a href="${data.formUrl}" target="_blank">${data.title}</a><br>
+                     Linked Sheet: <a href="${data.sheetUrl}" target="_blank">Open Sheet</a>`;
+          } else if (data.type === "sheet") {
+            reply = `Sheet created: <a href="${data.url}" target="_blank">${data.title}</a>`;
+          } else if (data.type === "list") {
+            reply = data.message;
+          } else {
+            reply = data.message || "Command executed.";
+          }
+          appendMessage('ai', reply);
+        } else {
+          appendMessage('ai', "Error: " + data.error);
+        }
+      })
+      .catch(err => {
+        console.error("API error:", err);
+        appendMessage('ai', "Error communicating with server.");
+      });
+    }
+
+    // Listen for chat form submission
+    chatForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const text = chatInput.value.trim();
+      if (!text) return;
+      processCommand(text);
+      chatInput.value = '';
+    });
+
+    // Quick action: Generate Form
+    quickGenerateFormBtn.addEventListener('click', () => {
+      processCommand("Generate a Google Form with the description: 'A sample feedback form.'");
+    });
+
+    // Quick action: Generate Form & Sheet
+    quickGenerateFormSheetBtn.addEventListener('click', () => {
+      processCommand("Generate a Google Form and linked Google Sheet with the description: 'A customer survey form with responses saved to a sheet.'");
+    });
+
+    // Quick action: Generate Sheet
+    quickGenerateSheetBtn.addEventListener('click', () => {
+      const title = prompt("Enter a title for the new Google Sheet:");
+      if (title) {
+        processCommand("Generate a Google Sheet with the title: " + title);
+      }
+    });
+
+    // Quick action: List My Forms (calls /api/forms directly)
+    quickListFormsBtn.addEventListener('click', () => {
+      auth.currentUser.getIdToken().then(token => {
+        fetch('/api/forms', {
+          method: 'GET',
+          headers: { 'Authorization': 'Bearer ' + token }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            let listHTML = "<h5>My Forms</h5>";
+            const forms = data.forms;
+            if (Object.keys(forms).length === 0) {
+              listHTML += "<p>No forms found.</p>";
+            } else {
+              listHTML += "<ul>";
+              for (const key in forms) {
+                listHTML += `<li>${forms[key].title} - <a href="${forms[key].formUrl}" target="_blank">Open Form</a></li>`;
+              }
+              listHTML += "</ul>";
+            }
+            appendMessage('ai', listHTML);
+          } else {
+            appendMessage('ai', "Error: " + data.error);
+          }
+        })
+        .catch(error => {
+          console.error("Error listing forms:", error);
+          appendMessage('ai', "Error calling server.");
+        });
+      });
+    });
+
+    // Quick action: Edit Sheet – prompt for parameters and call /api/edit-sheet
+    quickEditSheetBtn.addEventListener('click', () => {
+      const sheetId = prompt("Enter the Google Sheet ID:");
+      if (!sheetId) return;
+      const range = prompt("Enter the cell range to update (e.g., Sheet1!A2:D2):");
+      if (!range) return;
+      // For simplicity, prompt for one row of comma-separated values.
+      const cellValues = prompt("Enter the cell values separated by commas (this will update one row):");
+      if (!cellValues) return;
+      // Convert the input to an array of one row
+      const values = [ cellValues.split(",").map(v => v.trim()) ];
+      callApi('/api/edit-sheet', {
+        sheetId,
+        range,
+        values,
+        userEmail: auth.currentUser.email
+      })
+      .then(data => {
+        if (data.success) {
+          appendMessage('ai', "Sheet updated successfully.");
+        } else {
+          appendMessage('ai', "Error: " + data.error);
+        }
+      })
+      .catch(error => {
+        console.error("Error calling /api/edit-sheet:", error);
+        appendMessage('ai', "Error calling server.");
+      });
+    });
+
+    // Firebase Authentication – observe auth state changes
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        loginButton.style.display = 'none';
+        logoutButton.style.display = 'inline-block';
+        userInfoDiv.style.display = 'block';
+        quickActionsDiv.style.display = 'block';
+        userEmailSpan.textContent = user.email;
+        appendMessage('ai', "Welcome, " + user.email + ". How can I assist you today?");
+      } else {
+        loginButton.style.display = 'inline-block';
+        logoutButton.style.display = 'none';
+        userInfoDiv.style.display = 'none';
+        quickActionsDiv.style.display = 'none';
+        chatArea.innerHTML = "";
+      }
+    });
+
+    // Login and Logout actions
+    loginButton.addEventListener('click', () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider)
+        .then(result => {
+          console.log("Logged in:", result.user.email);
+        })
+        .catch(error => {
+          console.error("Login error:", error);
+        });
+    });
+    logoutButton.addEventListener('click', () => {
+      auth.signOut()
+        .then(() => {
+          console.log("Logged out successfully.");
+        })
+        .catch(error => {
+          console.error("Logout error:", error);
+        });
+    });
+  </script>
+</body>
+</html>
